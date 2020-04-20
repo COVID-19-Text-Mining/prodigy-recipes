@@ -1,0 +1,13 @@
+.keywords_summary_div {
+	line-height: 0.25 !important;
+	text-align: left;
+}
+
+.keywords_separation {
+	border-top: 1px solid #ccc;
+}
+
+.keywords_summary_text {
+	line-height: 1.25 !important;
+	margin: 10px 0 10px 0; 
+}
