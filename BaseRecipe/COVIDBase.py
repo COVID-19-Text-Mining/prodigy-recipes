@@ -288,4 +288,4 @@ def prodigy_data_provider_by_doi(doi):
 
     return stream
 
-# start_hacking(prodigy_data_provider_by_doi)
+start_hacking(prodigy_data_provider_by_doi)
