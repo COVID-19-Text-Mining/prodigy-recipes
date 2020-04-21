@@ -293,9 +293,6 @@ def COVIDBase(
 from prodigy_hacker import start_hacking
 
 random_seed = random.seed(time.time())
-tokenizer_spacy = spacy.load('en_core_web_sm')
-
-
 
 def prodigy_data_provider_by_doi(doi):
     global TEXT_STREAM_PIPELINE
