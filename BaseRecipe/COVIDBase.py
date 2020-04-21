@@ -1,5 +1,6 @@
 import os
 import sys
+from pprint import pprint
 
 current_folder = os.path.abspath(
     os.path.dirname(__file__),
@@ -64,6 +65,33 @@ def stream_add_options(stream, labels=None):
     else:
         yield from add_label_options(stream, labels=labels)
 
+
+def db_endless_sampling(col_name):
+    while True:
+        query = db[col_name].aggregate(
+            [
+                {
+                    '$match': {
+                        'doi': {'$exists': True},
+                        'abstract': {'$exists': True},
+                    }
+                },
+                {'$sample': {'size': 100}},
+                {
+                    '$project': {
+                        '_id': False,
+                        'doi': True,
+                        'abstract': True,
+                    },
+                },
+            ]
+        )
+        for doc in query:
+            if isinstance(doc['abstract'], str) and len(doc['abstract']) > 0:
+                yield {
+                    'text': doc['abstract'],
+                    'meta': {'source': doc['doi']},
+            }
 
 def get_ner_blocks(labels):
     blocks = [
@@ -175,9 +203,13 @@ def COVIDBase(
 
     # get a text stream, which is a generator of [{'text': '', ...}]
     if dataset_file is None:
-        # TODO: implement this after implementing custom loader
-        # load from collection dataset_name
-        ...
+        if dataset_name in db.collection_names():
+            stream = db_endless_sampling(dataset_name)
+        else:
+            raise ValueError(
+                'Loading from database because dataset_file is not specified! '
+                'However, collection {} does not exist!'.format(dataset_name)
+            )
     else:
         # Load the stream from a JSONL file and return a generator that yields a
         # dictionary for each example in the data.
