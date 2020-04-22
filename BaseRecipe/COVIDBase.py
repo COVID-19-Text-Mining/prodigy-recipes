@@ -1,23 +1,13 @@
-import os
-import sys
-from pprint import pprint
-
-current_folder = os.path.abspath(
-    os.path.dirname(__file__),
-)
-print('current_folder', current_folder)
-if current_folder not in sys.path:
-    sys.path.append(current_folder)
-
-
-import time
 import random
+import time
+from typing import List, Optional
+
 import prodigy
+import spacy
+from prodigy.components.db import get_db
 from prodigy.components.loaders import JSONL
 from prodigy.components.preprocess import add_tokens, add_label_options
 from prodigy.util import split_string
-import spacy
-from typing import List, Optional
 
 # with open('keywords_annotation.html') as txt:
 #     template_text = txt.read()
@@ -25,13 +15,8 @@ from typing import List, Optional
 #     script_text = txt.read()
 # with open('keywords_annotation.css') as txt:
 #     css_text = txt.read()
-
-from common_utils import get_mongo_db
-try:
-    db = get_mongo_db('tmp_db_config.json')
-    print('db.collection_names()', db.collection_names())
-except:
-    db = None
+db = get_db().get_mongo_db()
+print('db.collection_names()', db.collection_names())
 
 # pipeline to process [{'text': '', ...}]
 TEXT_STREAM_PIPELINE = []
@@ -49,6 +34,7 @@ DEFAULT_TEXT_CATEGORIES = [
     {"id": "case_report", "text": "Case report"},
     {"id": "historical", "text": "Historical information"},
 ]
+
 
 def stream_add_options(stream, labels=None):
     """
@@ -91,7 +77,8 @@ def db_endless_sampling(col_name):
                 yield {
                     'text': doc['abstract'],
                     'meta': {'source': doc['doi']},
-            }
+                }
+
 
 def get_ner_blocks(labels):
     blocks = [
@@ -101,6 +88,7 @@ def get_ner_blocks(labels):
         }
     ]
     return blocks
+
 
 def get_textcat_blocks(title=None, w_text=True):
     blocks = [
@@ -113,12 +101,13 @@ def get_textcat_blocks(title=None, w_text=True):
         blocks[-1]['text'] = None
     return blocks
 
+
 def get_summary_blocks(w_text=True):
     blocks = []
     if w_text:
         blocks.append({
             'view_id': 'text',
-            }
+        }
         )
 
     blocks.append(
@@ -137,59 +126,59 @@ def get_summary_blocks(w_text=True):
 @prodigy.recipe(
     "COVIDBase",
     task_type=(
-        "One or more comma-separated task types. "
-        "Available values: NER, TextCat, Summary",
-        "option", None, split_string
+            "One or more comma-separated task types. "
+            "Available values: NER, TextCat, Summary",
+            "option", None, split_string
     ),
     dataset_name=(
-        "The dataset to use. "
-        "1. Input dataset_name + dataset_file: "
-        "data loaded from dataset_file, and name is dataset_name. "
-        "2. Input dataset_name only: data loaded from the MongoDB "
-        "collection with the same name. By default, the value is "
-        "entries and load data from entries collection. ",
-        "option", None, str
+            "The dataset to use. "
+            "1. Input dataset_name + dataset_file: "
+            "data loaded from dataset_file, and name is dataset_name. "
+            "2. Input dataset_name only: data loaded from the MongoDB "
+            "collection with the same name. By default, the value is "
+            "entries and load data from entries collection. ",
+            "option", None, str
     ),
     dataset_file=(
-        "The source data as a JSONL file",
-        "option", None, str
+            "The source data as a JSONL file",
+            "option", None, str
     ),
     ner_label=(
-        "One or more comma-separated labels",
-        "option", None, split_string
+            "One or more comma-separated labels",
+            "option", None, split_string
     ),
     textcat_title=(
-        "Description for labels in text categorization task",
-        "option", None, str
+            "Description for labels in text categorization task",
+            "option", None, str
     ),
     textcat_label=(
-        "One or more comma-separated labels",
-        "option", None, split_string
+            "One or more comma-separated labels",
+            "option", None, split_string
     ),
     disable_multiple_choice=(
-        "If passed to command line, disable multiple choice for tasks "
-        "using choice components (such as text categorization)",
-        "flag", None, bool
+            "If passed to command line, disable multiple choice for tasks "
+            "using choice components (such as text categorization)",
+            "flag", None, bool
     ),
     spacy_model=(
-        "The base model",
-        "option", None, str
+            "The base model",
+            "option", None, str
     ),
     dataset_exclude=(
-        "Names of datasets to exclude",
-        "option", None, split_string
+            "Names of datasets to exclude",
+            "option", None, split_string
     ),
 )
 def COVIDBase(
-    task_type: Optional[List[str]] = ['NER', 'TextCat', 'Summary'],
-    dataset_name: Optional[str] = 'entries',
-    dataset_file: Optional[str] = None,
-    ner_label: Optional[List[str]] = None,
-    textcat_title: Optional[str] = None,
-    textcat_label: Optional[List[str]] = None,
-    disable_multiple_choice: bool = False,
-    spacy_model: Optional[str] = 'en_core_web_sm',
-    dataset_exclude: Optional[List[str]] = None,
+        task_type: Optional[List[str]] = ['NER', 'TextCat', 'Summary'],
+        dataset_name: Optional[str] = 'entries',
+        dataset_file: Optional[str] = None,
+        ner_label: Optional[List[str]] = None,
+        textcat_title: Optional[str] = None,
+        textcat_label: Optional[List[str]] = None,
+        disable_multiple_choice: bool = False,
+        spacy_model: Optional[str] = 'en_core_web_sm',
+        dataset_exclude: Optional[List[str]] = None,
 ):
     """
     Mark spans manually by token. Requires only a tokenizer and no entity
@@ -233,7 +222,6 @@ def COVIDBase(
                 AVAILABLE_TASKS
             ))
 
-
     if 'ner' in task_type:
         all_task_blocks.extend(
             get_ner_blocks(labels=ner_label)
@@ -273,8 +261,8 @@ def COVIDBase(
         "config": {  # Additional config settings, mostly for app UI
             'blocks': all_task_blocks,
             "lang": nlp.lang,
-            'javascript': None,     # custom js
-            'global_css': None,     # custom css
+            'javascript': None,  # custom js
+            'global_css': None,  # custom css
             'instant_submit': True,
             'choice_style': 'single' if disable_multiple_choice else 'multiple',
         },
@@ -294,9 +282,8 @@ from prodigy_hacker import start_hacking
 
 random_seed = random.seed(time.time())
 
-def prodigy_data_provider_by_doi(doi):
-    global TEXT_STREAM_PIPELINE
 
+def prodigy_data_provider_by_doi(doi):
     doc = db['entries'].find_one({'doi': doi})
     if doc and doc.get('abstract'):
         abstract = doc['abstract']
@@ -316,5 +303,6 @@ def prodigy_data_provider_by_doi(doi):
             stream = stream_fun(stream)
 
     return stream
+
 
 start_hacking(prodigy_data_provider_by_doi)
