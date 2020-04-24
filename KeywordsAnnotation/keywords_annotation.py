@@ -20,9 +20,6 @@ with open('keywords_annotation.js') as txt:
 with open('keywords_annotation.css') as txt:
     css_text = txt.read()
 
-# from common_utils import get_mongo_db
-# db = get_mongo_db('tmp_db_config.json')
-
 db = get_db().get_mongo_db()
 print('db.collection_names()', db.collection_names())
 

@@ -24,9 +24,6 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import request_response
 
-import keywords_extraction
-from common_utils import get_mongo_db
-
 with open('keywords_annotation.html') as txt:
     template_text = txt.read()
 with open('keywords_annotation.js') as txt:
