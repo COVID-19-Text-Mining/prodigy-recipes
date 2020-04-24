@@ -85,7 +85,11 @@ def db_endless_sampling(col_name):
             ]
         )
         for doc in query:
-            if isinstance(doc['abstract'], str) and len(doc['abstract']) > 0:
+            if (isinstance(doc['abstract'], str)
+                and len(doc['abstract']) > 0
+                and isinstance(doc['title'], str)
+                and len(doc['title']) > 0
+            ):
                 yield {
                     'text': doc['abstract'],
                     'title': doc['title'],
@@ -100,22 +104,22 @@ def get_paper_title_blocks():
         {
             'view_id': 'html',
             'html_template': \
-                '<h2><center>'
-                    '<a href="https://doi.org/{{meta.source}}" '
-                        'target="_blank" '
-                        'style="text-decoration: none">'
-                        '{{title}}'
-                    '</a>'
-                '</center></h2>'
+                '<center class="parent-padding-bottom-0px"><a href="https://doi.org/{{meta.source}}" '
+                    'target="_blank" '
+                    'style="text-decoration: none; font-size: 25px;">'
+                    '{{title}}'
+                '</a></center>'
         }
     ]
     return blocks
 
-def get_task_desc_blocks(task_desc):
+def get_task_desc_blocks(all_tasks):
+    task_desc = 'Task(s): {}'.format(', '.join(all_tasks))
     blocks = [
         {
-            'view_id': 'text',
-            'text': task_desc,
+            'view_id': 'html',
+            'html_template': \
+                '<div style="text-align: right; font-size: 16px;">{}</div>'.format(task_desc)
         }
     ]
     return blocks
@@ -265,11 +269,17 @@ def COVIDBase(
     TEXT_STREAM_PIPELINE.append(lambda x: add_tokens(nlp, x))
 
     # activate tasks
-    AVAILABLE_TASKS = ['ner', 'textcat', 'summary', 'note']
-    task_type = set([x.lower() for x in task_type])
+    TASK_DESCs = {
+        'ner': 'highlight named entities',
+        'textcat': 'select text categories',
+        'summary': 'add text summary',
+        'note': 'add text notes',
+    }
+    AVAILABLE_TASKS = set(TASK_DESCs.keys())
+    task_type = [x.lower() for x in task_type]
     all_task_blocks = []
     text_showed = False
-    if len(set(task_type) - set(AVAILABLE_TASKS)) > 0:
+    if len(set(task_type) - AVAILABLE_TASKS) > 0:
         raise ValueError(
             'task_type {} not enabled. Available task types: {}'.format(
                 task_type,
@@ -279,6 +289,12 @@ def COVIDBase(
     # add title blocks
     all_task_blocks.extend(
         get_paper_title_blocks()
+    )
+
+    # add task desc blocks
+    all_task_blocks.extend(
+        get_task_desc_blocks(
+            [TASK_DESCs[t] for t in task_type])
     )
 
     if 'ner' in task_type:
