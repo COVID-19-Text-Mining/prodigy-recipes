@@ -113,6 +113,7 @@ def db_endless_sampling(col_name):
                     '$match': {
                         'doi': {'$exists': True},
                         'abstract': {'$exists': True},
+                        'title': {'$exists': True},
                     }
                 },
                 {'$sample': {'size': 100}},
@@ -120,6 +121,7 @@ def db_endless_sampling(col_name):
                     '$project': {
                         '_id': False,
                         'doi': True,
+                        'title': True,
                         'abstract': True,
                         'keywords_ML': True,
                     },
@@ -127,9 +129,14 @@ def db_endless_sampling(col_name):
             ]
         )
         for doc in query:
-            if isinstance(doc['abstract'], str) and len(doc['abstract']) > 0:
+            if (isinstance(doc['abstract'], str)
+                and len(doc['abstract']) > 0
+                and isinstance(doc['title'], str)
+                and len(doc['title']) > 0
+            ):
                 sample = {
                     'text': doc['abstract'],
+                    'title': doc['title'],
                     'meta': {'source': doc['doi']},
                 }
                 if ('keywords_ML' in doc
@@ -141,6 +148,31 @@ def db_endless_sampling(col_name):
 ############################################################################
 # common functions to generate html blocks for different annotation taskt
 ############################################################################
+def get_paper_title_blocks():
+    blocks = [
+        {
+            'view_id': 'html',
+            'html_template': \
+                '<center class="parent-padding-bottom-0px"><a href="https://doi.org/{{meta.source}}" '
+                    'target="_blank" '
+                    'style="text-decoration: none; font-size: 25px;">'
+                    '{{title}}'
+                '</a></center>'
+        }
+    ]
+    return blocks
+
+def get_task_desc_blocks(all_tasks):
+    task_desc = 'Task(s): {}'.format(', '.join(all_tasks))
+    blocks = [
+        {
+            'view_id': 'html',
+            'html_template': \
+                '<div style="text-align: right; font-size: 16px;">{}</div>'.format(task_desc)
+        }
+    ]
+    return blocks
+
 def get_ner_blocks(labels):
     blocks = [
         {
@@ -177,6 +209,21 @@ def get_summary_blocks(w_text=True):
     )
     return blocks
 
+def get_note_blocks(w_text=True):
+    blocks = []
+    if w_text:
+        blocks.append({
+            'view_id': 'text',
+        })
+
+    blocks.append(
+        {
+            'view_id': 'text_input',
+            'field_placeholder': 'Type any notes here ...',
+            'field_rows': 3,
+        }
+    )
+    return blocks
 
 # Recipe decorator with argument annotations: (description, argument type,
 # shortcut, type / converter function called on value before it's passed to
@@ -265,8 +312,27 @@ def COVIDKeywordsAnnotation(
 
 
     # activate tasks
+    TASK_DESCs = {
+        'ner': 'highlight named entities',
+        'textcat': 'select text categories',
+        'summary': 'add text summary',
+        'note': 'add text notes',
+    }
+    AVAILABLE_TASKS = set(TASK_DESCs.keys())
     all_task_blocks = []
-    text_showed = False
+
+    # add title blocks
+    all_task_blocks.extend(
+        get_paper_title_blocks()
+    )
+
+    # add task desc blocks
+    all_task_blocks.extend(
+        get_task_desc_blocks(
+            ['mark whatever you think are keywords', ])
+    )
+
+    # add keywords ner blocks
     all_task_blocks.extend(
         get_ner_blocks(labels=['KEYWORD'])
     )

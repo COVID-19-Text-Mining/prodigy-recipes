@@ -1,3 +1,7 @@
+.prodigy-title-wrapper {
+	display: none;
+}
+
 .keywords_summary_div {
 	line-height: 0.25 !important;
 	text-align: left;
