@@ -29,8 +29,14 @@ def start_hacking(prodigy_data_provider_by_doi):
     with open(os.path.join(os.path.dirname(__file__), 'bundle.js'), encoding='utf8') as f:
         my_js = f.read()
 
+    with open(os.path.join(os.path.dirname(__file__), 'index.html'), encoding='utf8') as f:
+        my_html = f.read()
+
     def static_bundle(_):
         return Response(my_js, media_type="application/javascript")
+
+    def static_index(_):
+        return Response(my_html, media_type="text/html")
 
     for i, route in enumerate(prodigy_app.router.routes):
         if route.path == '/get_session_questions':
@@ -39,3 +45,6 @@ def start_hacking(prodigy_data_provider_by_doi):
         elif route.path == '/bundle.js':
             route.endpoint = static_bundle
             route.app = request_response(static_bundle)
+        elif route.path in {'/', '/index.html'}:
+            route.endpoint = static_index
+            route.app = request_response(static_index)

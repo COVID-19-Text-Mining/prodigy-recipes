@@ -16,10 +16,7 @@ from prodigy.util import split_string
 # with open('keywords_annotation.css') as txt:
 #     css_text = txt.read()
 
-from common_utils import get_mongo_db
-db = get_mongo_db('tmp_db_config.json')
-
-# db = get_db().get_mongo_db()
+db = get_db().get_mongo_db()
 print('db.collection_names()', db.collection_names())
 
 # global variables
@@ -73,6 +70,7 @@ def db_endless_sampling(col_name):
                     '$match': {
                         'doi': {'$exists': True},
                         'abstract': {'$exists': True},
+                        'title': {'$exists': True},
                     }
                 },
                 {'$sample': {'size': 100}},
@@ -80,6 +78,7 @@ def db_endless_sampling(col_name):
                     '$project': {
                         '_id': False,
                         'doi': True,
+                        'title': True,
                         'abstract': True,
                     },
                 },
@@ -89,12 +88,38 @@ def db_endless_sampling(col_name):
             if isinstance(doc['abstract'], str) and len(doc['abstract']) > 0:
                 yield {
                     'text': doc['abstract'],
+                    'title': doc['title'],
                     'meta': {'source': doc['doi']},
                 }
 
 ############################################################################
 # common functions to generate html blocks for different annotation taskt
 ############################################################################
+def get_paper_title_blocks():
+    blocks = [
+        {
+            'view_id': 'html',
+            'html_template': \
+                '<h2><center>'
+                    '<a href="https://doi.org/{{meta.source}}" '
+                        'target="_blank" '
+                        'style="text-decoration: none">'
+                        '{{title}}'
+                    '</a>'
+                '</center></h2>'
+        }
+    ]
+    return blocks
+
+def get_task_desc_blocks(task_desc):
+    blocks = [
+        {
+            'view_id': 'text',
+            'text': task_desc,
+        }
+    ]
+    return blocks
+
 def get_ner_blocks(labels):
     blocks = [
         {
@@ -133,6 +158,21 @@ def get_summary_blocks(w_text=True):
     )
     return blocks
 
+def get_note_blocks(w_text=True):
+    blocks = []
+    if w_text:
+        blocks.append({
+            'view_id': 'text',
+        })
+
+    blocks.append(
+        {
+            'view_id': 'text_input',
+            'field_placeholder': 'Type any notes here ...',
+            'field_rows': 3,
+        }
+    )
+    return blocks
 
 # Recipe decorator with argument annotations: (description, argument type,
 # shortcut, type / converter function called on value before it's passed to
@@ -141,7 +181,7 @@ def get_summary_blocks(w_text=True):
     "COVIDBase",
     task_type=(
             "One or more comma-separated task types. "
-            "Available values: NER, TextCat, Summary",
+            "Available values: NER, TextCat, Summary, Note",
             "option", None, split_string
     ),
     dataset_name=(
@@ -184,7 +224,7 @@ def get_summary_blocks(w_text=True):
     ),
 )
 def COVIDBase(
-        task_type: Optional[List[str]] = ['NER', 'TextCat', 'Summary'],
+        task_type: Optional[List[str]] = ['NER', 'TextCat', 'Summary', 'Note'],
         dataset_name: Optional[str] = 'entries',
         dataset_file: Optional[str] = None,
         ner_label: Optional[List[str]] = None,
@@ -225,7 +265,7 @@ def COVIDBase(
     TEXT_STREAM_PIPELINE.append(lambda x: add_tokens(nlp, x))
 
     # activate tasks
-    AVAILABLE_TASKS = ['ner', 'textcat', 'summary']
+    AVAILABLE_TASKS = ['ner', 'textcat', 'summary', 'note']
     task_type = set([x.lower() for x in task_type])
     all_task_blocks = []
     text_showed = False
@@ -235,6 +275,11 @@ def COVIDBase(
                 task_type,
                 AVAILABLE_TASKS
             ))
+
+    # add title blocks
+    all_task_blocks.extend(
+        get_paper_title_blocks()
+    )
 
     if 'ner' in task_type:
         all_task_blocks.extend(
@@ -258,6 +303,14 @@ def COVIDBase(
     if 'summary' in task_type:
         all_task_blocks.extend(
             get_summary_blocks(
+                w_text=(not text_showed)
+            )
+        )
+        text_showed = True
+
+    if 'note' in task_type:
+        all_task_blocks.extend(
+            get_note_blocks(
                 w_text=(not text_showed)
             )
         )
