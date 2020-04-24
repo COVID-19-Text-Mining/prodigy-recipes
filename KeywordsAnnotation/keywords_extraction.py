@@ -1,3 +1,5 @@
+import sys
+import os
 import importlib
 
 def found_package(package_name):
@@ -10,11 +12,14 @@ import collections
 import json
 from pprint import pprint
 import numpy as np
+from bson import json_util
+import re
 import regex
 import string
 import copy
 import spacy
 from nltk.corpus import stopwords
+from typing import List, Union
 
 if found_package('matplotlib'):
     import matplotlib.pyplot as plt
@@ -30,6 +35,13 @@ if found_package('pke'):
     import pke
 if found_package('mrakun'):
     import mrakun
+
+if os.path.exists('./NNSupport'):
+    sys.path.append(os.path.abspath("./NNSupport"))
+    from onmt.translate.translator import build_translator
+    from onmt.keyphrase.utils import meng17_tokenize, replace_numbers_to_DIGIT
+    from strsimpy import NGram
+
 
 class KeywordsExtractorBase():
     def __init__(self, **kwargs):
@@ -282,6 +294,7 @@ class KeywordsExtractorBase():
         new_text = regex.sub(r'<.{1,10}?>', '', text)
         return new_text
 
+
 class KeywordsExtractorSumma(KeywordsExtractorBase):
     def __init__(self, split=False, scores=False, **kwargs):
         super().__init__(**kwargs)
@@ -310,6 +323,7 @@ class KeywordsExtractorYake(KeywordsExtractorBase):
     def _process(self, text):
         keywords = self.kw_extractor.extract_keywords(text)
         return keywords
+
 
 class KeywordsExtractorTfIdf(KeywordsExtractorBase):
     def __init__(self, max_ngram_size=3, df=None, **kwargs):
@@ -352,6 +366,7 @@ class KeywordsExtractorTfIdf(KeywordsExtractorBase):
             keywords = self.kw_extractor.get_n_best(n=num_keywords)
 
         return keywords
+
 
 class KeywordsExtractorKPMiner(KeywordsExtractorBase):
     def __init__(self, lasf=3, cutoff=200, alpha=2.3, sigma=3.0, df=None, **kwargs):
@@ -445,6 +460,7 @@ class KeywordsExtractorSingleRank(KeywordsExtractorBase):
 
         return keywords
 
+
 class KeywordsExtractorTopicRank(KeywordsExtractorBase):
     def __init__(self, threshold=0.74, method='average', heuristic=None, **kwargs):
         super().__init__(**kwargs)
@@ -473,7 +489,6 @@ class KeywordsExtractorTopicRank(KeywordsExtractorBase):
         )
         num_keywords = len(self.kw_extractor.candidates)
 
-
         # build topics by grouping candidates with HAC (average linkage,
         #    threshold of 1/4 of shared stems). Weight the topics using random
         #    walk, and select the first occuring candidate from each topic.
@@ -496,6 +511,7 @@ class KeywordsExtractorTopicRank(KeywordsExtractorBase):
             keywords = []
 
         return keywords
+
 
 class KeywordsExtractorTopicalPageRank(KeywordsExtractorBase):
     def __init__(self, window=10, lda_model=None, **kwargs):
@@ -549,6 +565,7 @@ class KeywordsExtractorTopicalPageRank(KeywordsExtractorBase):
 
         return keywords
 
+
 class KeywordsExtractorPositionRank(KeywordsExtractorBase):
     def __init__(self, window=10, max_ngram_size=3, **kwargs):
         super().__init__(**kwargs)
@@ -601,6 +618,7 @@ class KeywordsExtractorPositionRank(KeywordsExtractorBase):
 
         return keywords
 
+
 class KeywordsExtractorMultipartiteRank(KeywordsExtractorBase):
     def __init__(self, alpha=1.1, threshold=0.74, method='average', **kwargs):
         super().__init__(**kwargs)
@@ -630,7 +648,6 @@ class KeywordsExtractorMultipartiteRank(KeywordsExtractorBase):
             stoplist=self.stoplist,
         )
         num_keywords = len(self.kw_extractor.candidates)
-
 
         # build topics by grouping candidates with HAC (average linkage,
         #    threshold of 1/4 of shared stems). Weight the topics using random
@@ -664,7 +681,7 @@ class KeywordsExtractorRaKUn(KeywordsExtractorBase):
                  num_keywords=10,
                  pair_diff_length=2,
                  bigram_count_threshold=2,
-                 num_tokens=[1,2],
+                 num_tokens=[1, 2],
                  max_similar=3,
                  max_occurrence=3,
                  **kwargs):
@@ -699,6 +716,126 @@ class KeywordsExtractorRaKUn(KeywordsExtractorBase):
         return keywords
 
 
+class KeywordsExtractorNN(KeywordsExtractorBase):
+
+    class CustomDict(dict):
+        def __getattr__(self, item):
+            return self[item]
+
+    def __init__(self, config=None, **kwargs):
+        super(KeywordsExtractorNN, self).__init__(**kwargs)
+
+        self.name = kwargs.get("name", "Copy-RNN")
+
+        if config is not None:
+            self.config = self.CustomDict(config)
+        else:
+            DEFAULT_CONFIG = json.load(
+                open("./NNSupport/config/translators.json", "r", encoding="utf-8")
+            )
+            self.config = self.CustomDict(DEFAULT_CONFIG)
+
+        self.translator = self._load_model()
+        self._ngram = NGram(2)
+
+    def _load_model(self):
+        if not os.path.isfile(self.config.models[0]):
+            raise FileNotFoundError("No model found, please use the download script in "
+                                    "NNSupport/models to download the model.")
+        translator = build_translator(self.config)
+        return translator
+
+    def _process(self, text: str, title: Union[None, str] = None) -> List[str]:
+        """
+        :param text: input text
+        :param title: After the training, the model has learned to attach great importance to
+                              the title, so even if the title is absent, there should also a placeholder
+                              for the title.
+        :return:
+        """
+        text = self._preprocess(title, text)
+        # print(text)
+        input_dict = {
+            "id": "7",  # casually selected
+            "src": text
+        }
+        scores, keywords = self.translator.translate(
+            [json.dumps(input_dict).encode("utf-8")],
+            tgt=['{"id": "7", "tgt": [""]}'.encode("utf-8")],  # tgt must be given or there will be an error
+            batch_size=1
+        )
+        keywords = self._postprocess(keywords[0], text)
+        # TODO: need to assign scores to corresponding keywords
+        # currently, use a placehold for score
+        keywords_scores = [(x, 0.0) for x in keywords]
+        return keywords_scores
+
+    def _preprocess(self, raw_title, raw_text):
+        """
+        tokenize the input text and do some necessary process
+        """
+        if raw_title is None:
+            raw_title = ""
+        raw_title = raw_title.strip()
+        # raw_title += (raw_title[-1] not in (".", "?", "!")) * "."
+        if self.config.lower:
+            raw_title = raw_title.lower()
+            raw_text = raw_text.lower()
+        title_tokens = meng17_tokenize(raw_title)
+        text_tokens = meng17_tokenize(raw_text)
+        tokens = title_tokens + ["."] + text_tokens
+        if self.config.replace_digit:
+            tokens = replace_numbers_to_DIGIT(tokens, k=2)
+        return " ".join(tokens)
+
+    def _postprocess(self, keywords, text):
+        """
+        replace unwanted and repeated tokens
+
+        sometimes do guess for <digit>
+        """
+        text = text.lower()
+        keywords = [keyword for keyword in keywords if len(keyword) < 30]
+        new_keywords = []
+        for keyword in keywords:
+            keyword = " ".join([word for word in keyword.split(" ") if re.search(r"\.", word) is None])
+
+            if len(re.sub(r"<unk>|<digit>|\s", "", keyword).strip()) <= 3:
+                continue
+            elif len(keyword.split(" ")) > 5:
+                continue
+            if len(re.findall(r"<digit>", keyword)) == 1:
+                make_re = keyword.replace("<digit>", r"\d+")
+                all_candidate = list(set(re.findall(make_re, text)))
+                if len(all_candidate) == 1:
+                    keyword = all_candidate[0]
+            if re.search(r"<unk>|<digit>", keyword):
+                continue
+            new_keywords.append(keyword)
+        new_new_keywords = []
+        for i in range(len(new_keywords)):
+            flag = True
+            for j in range(len(new_keywords)):
+                if i != j and new_keywords[i] in new_keywords[j]:
+                    flag = False
+                    break
+            if flag:
+                new_new_keywords.append(new_keywords[i])
+        new_keywords = new_new_keywords
+        new_new_keywords = []
+        for i, keyword in enumerate(new_keywords):
+            if i != 0:
+                distance = self._ngram.distance(
+                    (min(new_keywords[:i], key=lambda x: self._ngram.distance(keyword, x))), keyword
+                )
+                if distance > 0.1:
+                    new_new_keywords.append(keyword)
+            else:
+                new_new_keywords.append(keyword)
+
+        return new_new_keywords
+
+
 class KeywordsExtractorCombined(KeywordsExtractorBase):
     def __init__(self,
                  models=[],
@@ -708,7 +845,7 @@ class KeywordsExtractorCombined(KeywordsExtractorBase):
         self.name = kwargs.get('name', 'Combined')
         self.models = models
 
-        assert self.score_threshold == None
+        assert self.score_threshold is None
 
     def _process(self, text):
         keywords = []
@@ -758,6 +895,7 @@ def evaluation_a_doc(ref_words, pred_words, ignore_case=True):
     recall = sum(matched_values_ref.values()) / max(num_ref, 1.0)
     F1 = 2*precision*recall/max((precision+recall), 1E-6)
     return precision, recall, F1
+
 
 def evaluation_many_docs(ref_docs, pred_docs, ignore_case=True):
     assert len(ref_docs) == len(pred_docs)
@@ -985,6 +1123,7 @@ def extract_keywords_in_prodify_format(in_path='../rsc/samples_21181.json',
             json.dump(p, fw)
             fw.write('\n')
 
+
 def plot_word_cloud(in_path='../scratch/papers_w_keywords.json',
                     out_path='../scratch/keywords_word_cloud.png'):
     with open(in_path, 'r') as fr:
@@ -1000,7 +1139,7 @@ def plot_word_cloud(in_path='../scratch/papers_w_keywords.json',
     wordcloud = WordCloud(
         background_color='white',
         max_words=200,
-        stopwords=stoplist,
+        stopwords=set(stoplist),
         max_font_size=250,
         random_state=30,
         height=860,
@@ -1018,7 +1157,6 @@ def plot_word_cloud(in_path='../scratch/papers_w_keywords.json',
     plt.show()
 
 
-
 if __name__ == '__main__':
     # train_word_frequency()
 
@@ -1027,94 +1165,79 @@ if __name__ == '__main__':
     #     out_path='../scratch/papers_w_keywords.json'
     # )
 
-    extract_keywords_in_prodify_format(
-        in_path='../rsc/samples_21181.json',
-        out_path='../scratch/prodigy_abstracts_21181.jsonl'
-    )
+    # extract_keywords_in_prodify_format(
+    #     in_path='../rsc/samples_21181.json',
+    #     out_path='../scratch/prodigy_abstracts_21181.jsonl'
+    # )
 
     # plot_word_cloud(
     #     in_path='../scratch/papers_w_keywords.json',
     #     out_path='../scratch/keywords_word_cloud.png',
     # )
     #
-    # keyword_tester(
-    #     keyword_extractors=[
-    #         KeywordsExtractorSumma(
-    #             name='Summa_0',
-    #             split=True,
-    #             scores=True,
-    #             use_longest_phrase=True,
-    #         ),
-    #         KeywordsExtractorYake(
-    #             name='Yake_20',
-    #             max_ngram_size=3,
-    #             window_size=1,
-    #             top=20,
-    #             use_longest_phrase=True,
-    #         ),
-    #         # KeywordsExtractorTfIdf(
-    #         #     max_ngram_size=3,
-    #         #     # df='../rsc/tf_abs_2.tsv.gz',
-    #         # ),
-    #         # KeywordsExtractorKPMiner(
-    #         #     # df='../rsc/tf_abs_2.tsv.gz',
-    #         # ),
-    #         # KeywordsExtractorSingleRank(),
-    #         # KeywordsExtractorTopicRank(),
-    #         # KeywordsExtractorTopicalPageRank(
-    #         #     lda_model='../scratch/pke_lda_0',
-    #         # ),
-    #         # KeywordsExtractorPositionRank(),
-    #         # KeywordsExtractorMultipartiteRank(),
-    #         KeywordsExtractorRaKUn(
-    #             name='RaKUn_0',
-    #             distance_threshold=2,
-    #             pair_diff_length=2,
-    #             bigram_count_threhold=2,
-    #             num_tokens=[1,2,3],
-    #             max_similar=10,
-    #             max_occurrence=3,
-    #             score_threshold=None,
-    #             use_longest_phrase=True,
-    #         ),
-    #         KeywordsExtractorRaKUn(
-    #             name='RaKUn_1',
-    #             distance_threshold=2,
-    #             pair_diff_length=2,
-    #             bigram_count_threhold=2,
-    #             num_tokens=[1, 2, 3],
-    #             max_similar=10,
-    #             max_occurrence=3,
-    #             num_keywords=20,
-    #             score_threshold=None,
-    #             use_longest_phrase=True,
-    #         ),
-    #         KeywordsExtractorRaKUn(
-    #             name='RaKUn_2',
-    #             distance_threshold=2,
-    #             pair_diff_length=2,
-    #             bigram_count_threhold=2,
-    #             num_tokens=[1, 2, 3],
-    #             max_similar=10,
-    #             max_occurrence=3,
-    #             num_keywords=30,
-    #             score_threshold=None,
-    #             use_longest_phrase=True,
-    #         ),
-    #         KeywordsExtractorRaKUn(
-    #             name='RaKUn_3',
-    #             distance_threshold=2,
-    #             pair_diff_length=2,
-    #             bigram_count_threhold=2,
-    #             num_tokens=[1, 2, 3],
-    #             max_similar=10,
-    #             max_occurrence=3,
-    #             score_threshold=0.20,
-    #             use_longest_phrase=True,
-    #         ),
-    #
-    #
-    #     ],
-    #     in_path='../scratch/paper_samples.json',
-    #     out_path='../scratch/keywords_test2.html',
-    # )
+    keyword_tester(
+        keyword_extractors=[
+            # KeywordsExtractorSumma(
+            #     name='Summa_0',
+            #     split=True,
+            #     scores=True,
+            #     use_longest_phrase=True,
+            # ),
+            # KeywordsExtractorYake(
+            #     name='Yake_20',
+            #     max_ngram_size=3,
+            #     window_size=1,
+            #     top=20,
+            #     use_longest_phrase=True,
+            # ),
+            # KeywordsExtractorRaKUn(
+            #     name='RaKUn_0',
+            #     distance_threshold=2,
+            #     pair_diff_length=2,
+            #     bigram_count_threhold=2,
+            #     num_tokens=[1,2,3],
+            #     max_similar=10,
+            #     max_occurrence=3,
+            #     score_threshold=None,
+            #     use_longest_phrase=True,
+            # ),
+            # KeywordsExtractorRaKUn(
+            #     name='RaKUn_1',
+            #     distance_threshold=2,
+            #     pair_diff_length=2,
+            #     bigram_count_threhold=2,
+            #     num_tokens=[1, 2, 3],
+            #     max_similar=10,
+            #     max_occurrence=3,
+            #     num_keywords=20,
+            #     score_threshold=None,
+            #     use_longest_phrase=True,
+            # ),
+            # KeywordsExtractorRaKUn(
+            #     name='RaKUn_2',
+            #     distance_threshold=2,
+            #     pair_diff_length=2,
+            #     bigram_count_threhold=2,
+            #     num_tokens=[1, 2, 3],
+            #     max_similar=10,
+            #     max_occurrence=3,
+            #     num_keywords=30,
+            #     score_threshold=None,
+            #     use_longest_phrase=True,
+            # ),
+            # KeywordsExtractorRaKUn(
+            #     name='RaKUn_3',
+            #     distance_threshold=2,
+            #     pair_diff_length=2,
+            #     bigram_count_threhold=2,
+            #     num_tokens=[1, 2, 3],
+            #     max_similar=10,
+            #     max_occurrence=3,
+            #     score_threshold=0.20,
+            #     use_longest_phrase=True,
+            # ),
+            KeywordsExtractorNN(only_extractive=True),
+        ],
+        in_path='../scratch/paper_samples.json',
+        out_path='../scratch/keywords_test2.html',
+    )

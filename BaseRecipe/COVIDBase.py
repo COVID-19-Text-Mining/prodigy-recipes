@@ -15,12 +15,18 @@ from prodigy.util import split_string
 #     script_text = txt.read()
 # with open('keywords_annotation.css') as txt:
 #     css_text = txt.read()
-db = get_db().get_mongo_db()
+
+from common_utils import get_mongo_db
+db = get_mongo_db('tmp_db_config.json')
+
+# db = get_db().get_mongo_db()
 print('db.collection_names()', db.collection_names())
 
+# global variables
 # pipeline to process [{'text': '', ...}]
 TEXT_STREAM_PIPELINE = []
 
+# constant variables
 DEFAULT_TEXT_CATEGORIES = [
     {"id": "general_info", "text": "General information"},
     {"id": "mechanism", "text": "Mechanism of cell entry"},
@@ -35,7 +41,9 @@ DEFAULT_TEXT_CATEGORIES = [
     {"id": "historical", "text": "Historical information"},
 ]
 
-
+############################################################################
+# common functions to process stream in pipeline
+############################################################################
 def stream_add_options(stream, labels=None):
     """
     add options to test stream. used for text categorization tasks
@@ -51,6 +59,11 @@ def stream_add_options(stream, labels=None):
     else:
         yield from add_label_options(stream, labels=labels)
 
+def stream_clean_text(stream, cleaners):
+    for task in stream:
+        for cleaner in cleaners:
+            task['text'] = cleaner(task['text'])
+        yield task
 
 def db_endless_sampling(col_name):
     while True:
@@ -79,7 +92,9 @@ def db_endless_sampling(col_name):
                     'meta': {'source': doc['doi']},
                 }
 
-
+############################################################################
+# common functions to generate html blocks for different annotation taskt
+############################################################################
 def get_ner_blocks(labels):
     blocks = [
         {
@@ -107,8 +122,7 @@ def get_summary_blocks(w_text=True):
     if w_text:
         blocks.append({
             'view_id': 'text',
-        }
-        )
+        })
 
     blocks.append(
         {
@@ -284,6 +298,7 @@ random_seed = random.seed(time.time())
 
 
 def prodigy_data_provider_by_doi(doi):
+    # TODO: need to change entries to custom col_name
     doc = db['entries'].find_one({'doi': doi})
     if doc and doc.get('abstract'):
         abstract = doc['abstract']
