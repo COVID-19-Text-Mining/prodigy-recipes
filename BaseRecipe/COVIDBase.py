@@ -9,13 +9,6 @@ from prodigy.components.loaders import JSONL
 from prodigy.components.preprocess import add_tokens, add_label_options
 from prodigy.util import split_string
 
-# with open('keywords_annotation.html') as txt:
-#     template_text = txt.read()
-# with open('keywords_annotation.js') as txt:
-#     script_text = txt.read()
-# with open('keywords_annotation.css') as txt:
-#     css_text = txt.read()
-
 # from common_utils import get_mongo_db
 # db = get_mongo_db('tmp_db_config.json')
 
@@ -25,6 +18,7 @@ print('db.collection_names()', db.collection_names())
 # global variables
 # pipeline to process [{'text': '', ...}]
 TEXT_STREAM_PIPELINE = []
+MONGO_COL_NAME = 'entries'
 
 # constant variables
 DEFAULT_TEXT_CATEGORIES = [
@@ -245,11 +239,42 @@ def COVIDBase(
         dataset_exclude: Optional[List[str]] = None,
 ):
     """
-    Mark spans manually by token. Requires only a tokenizer and no entity
-    recognizer, and doesn't do any active learning.
+    The base recipe provides most common annotation tasks for COVID study.
+    Besides, you can build more sophisticated recipe based on this and
+    save some time building wheels.
+    Currently, there are four default tasks you can choose among.
+    You can specify `task-type` to select.
+    The default value is `-task-type ner, textcat, summary, note`.
+    1. NER (Named-Entity Recognition): mark the words or phrase in text with different labels.
+        You can define the labels with `ner-label. E.g. `-ner-label vaccine,disease`
+    2. TextCat (Text categorization): choose the categories the paragraph falls in.
+        Multiple choice is enabled by default.
+        You can define the labels with `textcat_label`. E.g. `-textcat-lebel mechanism,diagnostics`.
+        The default value is eleven classes defined by our Expert, Kevin.
+    3. Summary: Summary the paragraph with more consice sentences.
+    4. Note: Add any note you like, such as summary, important points, critical parameters, etc.
+
+    :param task_type:
+    :param dataset_name:
+    :param dataset_file:
+    :param ner_label:
+    :param textcat_title:
+    :param textcat_label:
+    :param disable_multiple_choice:
+    :param spacy_model:
+    :param dataset_exclude:
+    :return:
     """
 
+    # TEXT_STREAM_PIPELINE is the global variable that you put all text processors in
+    # in that way, other function outside could use the same processing pipeline for the same task
     global TEXT_STREAM_PIPELINE
+    # MONGO_COL_NAME is the global variable recoding which mongo collection
+    # you load data if you want to load paper by doi
+    global MONGO_COL_NAME
+
+    # change globale variable MONGO_COL_NAME for further use when loading paper by doi
+    MONGO_COL_NAME = dataset_name
 
     # Load the spaCy model for tokenization
     nlp = spacy.load(spacy_model)
@@ -273,6 +298,59 @@ def COVIDBase(
     # faster highlighting, because the selection can "snap" to token boundaries.
     # stream = add_tokens(nlp, stream)
     TEXT_STREAM_PIPELINE.append(lambda x: add_tokens(nlp, x))
+
+    # custom html, javascript, css
+    # If you want to design your own html, javascript, and css
+    # load them from file as following and pass them to corresponding interface
+    # In terms of html, you can create a block with `view_id` of `html`
+    # and pass the `template_text` to `html_template`.
+    # Then, add this block to all_task_blocks.
+    # E.g:
+    # all_task_blocks.append({
+    #     'view_id': 'html',
+    #     'html_template': template_text,
+    # })
+    # In terms of javascript, pass `script_text` to `javascript` when returning.
+    # If you are familiar with React, you can modify bundle.js as a more flexible way.
+    # E.g.:
+    # return {
+    #     ...
+    #     "config": {  # Additional config settings, mostly for app UI
+    #         ...
+    #         'javascript': script_text,  # custom js
+    #         ...
+    #     },
+    #     ...
+    # }
+    # In terms of css, it is a little bit tricky. There are two ways.
+    # (1) add the css in index.html.
+    # E.g.:
+    # <head>
+    #     ...
+    #     <style>
+    #         .prodigy-content {
+    #             text-align: justify !important;
+    #         }
+    #     </style>
+    #     ...
+    # </head>
+    # (2) Pass css_text to `global_css` when returning. However, this is slower than method (1).
+    # E.g.:
+    # return {
+    #     ...
+    #     "config": {  # Additional config settings, mostly for app UI
+    #         ...
+    #         'css_text': script_text,  # custom js
+    #         ...
+    #     },
+    #     ...
+    # }
+    # with open('keywords_annotation.html') as txt:
+    #     template_text = txt.read()
+    # with open('keywords_annotation.js') as txt:
+    #     script_text = txt.read()
+    # with open('keywords_annotation.css') as txt:
+    #     css_text = txt.read()
 
     # activate tasks
     TASK_DESCs = {
@@ -304,6 +382,7 @@ def COVIDBase(
     )
 
     if 'ner' in task_type:
+        # add ner blocks
         all_task_blocks.extend(
             get_ner_blocks(labels=ner_label)
         )
@@ -311,6 +390,7 @@ def COVIDBase(
         textcat_title = None
 
     if 'textcat' in task_type:
+        # add text categorization blocks
         TEXT_STREAM_PIPELINE.append(
             lambda x: stream_add_options(x, labels=textcat_label)
         )
@@ -323,6 +403,7 @@ def COVIDBase(
         text_showed = True
 
     if 'summary' in task_type:
+        # add summary blocks
         all_task_blocks.extend(
             get_summary_blocks(
                 w_text=(not text_showed)
@@ -331,6 +412,7 @@ def COVIDBase(
         text_showed = True
 
     if 'note' in task_type:
+        # add note blocks
         all_task_blocks.extend(
             get_note_blocks(
                 w_text=(not text_showed)
@@ -371,13 +453,11 @@ from prodigy_hacker import start_hacking
 
 random_seed = random.seed(time.time())
 
-
 def prodigy_data_provider_by_doi(doi):
-    # TODO: need to change entries to custom col_name
-    doc = db['entries'].find_one({'doi': doi})
+    doc = db[MONGO_COL_NAME].find_one({'doi': doi})
     if doc and doc.get('abstract'):
+        # get data from db
         abstract = doc['abstract']
-
         prodigy_data = [{
             '_input_hash': hash(time.time() + random.random() * 1e6),
             '_task_hash': hash(time.time() + random.random() * 1e6),
@@ -387,6 +467,7 @@ def prodigy_data_provider_by_doi(doi):
             'meta': {'source': doi},
         }]
 
+        # process data into the format fitting the task
         stream = iter(prodigy_data)
         # apply stream pipeline on text stream
         for stream_fun in TEXT_STREAM_PIPELINE:

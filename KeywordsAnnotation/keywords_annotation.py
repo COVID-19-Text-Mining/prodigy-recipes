@@ -26,6 +26,7 @@ print('db.collection_names()', db.collection_names())
 # global variables
 # pipeline to process [{'text': '', ...}]
 TEXT_STREAM_PIPELINE = []
+MONGO_COL_NAME = 'entries'
 
 # constant variables
 DEFAULT_TEXT_CATEGORIES = [
@@ -267,6 +268,9 @@ def COVIDKeywordsAnnotation(
     """
 
     global TEXT_STREAM_PIPELINE
+    global MONGO_COL_NAME
+
+    MONGO_COL_NAME = dataset_name
 
     # Load the spaCy model for tokenization
     nlp = spacy.load(spacy_model)
@@ -377,16 +381,7 @@ def COVIDKeywordsAnnotation(
 from prodigy_hacker import start_hacking
 
 def prodigy_data_provider_by_doi(doi):
-    # TODO: need to change entries to custom col_name
-    doc = db['entries'].find_one(
-        {'doi': doi},
-        {
-            '_id': False,
-            'doi': True,
-            'abstract': True,
-            'keywords_ML': True,
-        },
-    )
+    doc = db[MONGO_COL_NAME].find_one({'doi': doi})
     if doc and doc.get('abstract'):
         abstract = doc['abstract']
 
