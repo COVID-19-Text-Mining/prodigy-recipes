@@ -3,6 +3,15 @@ The base recipe serves for two purpose:
 * You can build more sophisticated recipe based on this and
 save some time building wheels.
 
+Gernal usage:
+    
+    1. Download all the files in the BaseRecipe folder
+    2. Go to annotate.covidscholar.org and click to create a new Prodigy instance
+    3. Fill Service Name with any name you like
+    4. Fill collection name as the MongoDB collection where you want to store the annotation
+    5. Fill prodigy arguments as needed. 
+    upload all the files to 
+
 Currently, there are four default tasks you can choose among.
 You can specify `task-type` to select.
 The default value is `-task-type ner, textcat, summary, note`.
