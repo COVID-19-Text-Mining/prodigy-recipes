@@ -13,13 +13,6 @@ from prodigy.util import split_string
 
 import keywords_extraction
 
-with open('keywords_annotation.html') as txt:
-    template_text = txt.read()
-with open('keywords_annotation.js') as txt:
-    script_text = txt.read()
-with open('keywords_annotation.css') as txt:
-    css_text = txt.read()
-
 db = get_db().get_mongo_db()
 print('db.collection_names()', db.collection_names())
 
@@ -43,7 +36,6 @@ DEFAULT_TEXT_CATEGORIES = [
     {"id": "historical", "text": "Historical information"},
 ]
 kw_base = keywords_extraction.KeywordsExtractorBase()
-random_seed = random.seed(time.time())
 
 ############################################################################
 # common functions to process stream in pipeline
@@ -263,13 +255,23 @@ def COVIDKeywordsAnnotation(
     dataset_exclude: Optional[List[str]] = None,
 ):
     """
-    Mark spans manually by token. Requires only a tokenizer and no entity
-    recognizer, and doesn't do any active learning.
+    keywords annotation recipe
+
+    :param dataset_name:
+    :param dataset_file:
+    :param spacy_model:
+    :param dataset_exclude:
+    :return:
     """
 
+    # TEXT_STREAM_PIPELINE is the global variable that you put all text processors in
+    # in that way, other function outside could use the same processing pipeline for the same task
     global TEXT_STREAM_PIPELINE
+    # MONGO_COL_NAME is the global variable recoding which mongo collection
+    # you load data if you want to load paper by doi
     global MONGO_COL_NAME
 
+    # change globale variable MONGO_COL_NAME for further use when loading paper by doi
     MONGO_COL_NAME = dataset_name
 
     # Load the spaCy model for tokenization
@@ -317,6 +319,12 @@ def COVIDKeywordsAnnotation(
         )
     )
 
+    with open('keywords_annotation.html') as txt:
+        template_text = txt.read()
+    with open('keywords_annotation.js') as txt:
+        script_text = txt.read()
+    with open('keywords_annotation.css') as txt:
+        css_text = txt.read()
 
     # activate tasks
     TASK_DESCs = {
@@ -380,6 +388,8 @@ def COVIDKeywordsAnnotation(
 
 from prodigy_hacker import start_hacking
 
+random_seed = random.seed(time.time())
+
 def prodigy_data_provider_by_doi(doi):
     doc = db[MONGO_COL_NAME].find_one({'doi': doi})
     if doc and doc.get('abstract'):
@@ -405,6 +415,5 @@ def prodigy_data_provider_by_doi(doi):
 
     return stream
 
+
 start_hacking(prodigy_data_provider_by_doi)
-
-
