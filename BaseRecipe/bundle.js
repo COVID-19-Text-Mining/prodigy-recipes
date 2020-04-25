@@ -420,6 +420,12 @@
             h = e.className,
             v = u(e, ["children", "nowrap", "divider", "textSize", "cardStyle", "classes", "className", "theme"]),
             y = (0, i.default)("prodigy-content", p.root, p._root, h, (l(t = {}, p.wrap, !a), l(t, p.divider, s), l(t, p.small, !a && "small" == c), l(t, p.medium, !a && "medium" == c), l(t, p.large, !a && "large" == c), t));
+        if(v.dangerouslySetInnerHTML && v.dangerouslySetInnerHTML.__html.search("parent-padding-bottom-0px")>0) {
+            d.paddingBottom = 0;
+        }
+        if(v.dangerouslySetInnerHTML && v.dangerouslySetInnerHTML.__html.search("parent-padding-top-0px")>0) {
+            d.paddingTop = 0;
+        }
         return o.default.createElement("div", r({
             className: y,
             style: d

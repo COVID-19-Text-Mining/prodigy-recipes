@@ -16,6 +16,9 @@ from prodigy.util import split_string
 # with open('keywords_annotation.css') as txt:
 #     css_text = txt.read()
 
+# from common_utils import get_mongo_db
+# db = get_mongo_db('tmp_db_config.json')
+
 db = get_db().get_mongo_db()
 print('db.collection_names()', db.collection_names())
 
@@ -119,7 +122,10 @@ def get_task_desc_blocks(all_tasks):
         {
             'view_id': 'html',
             'html_template': \
-                '<div style="text-align: right; font-size: 16px;">{}</div>'.format(task_desc)
+                '<div class="parent-padding-top-0px parent-padding-bottom-0px" '
+                    'style="text-align: right; font-size: 16px;">'
+                    '{task_desc}'
+                '</div>'.format(task_desc=task_desc)
         }
     ]
     return blocks

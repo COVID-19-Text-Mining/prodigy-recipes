@@ -168,7 +168,10 @@ def get_task_desc_blocks(all_tasks):
         {
             'view_id': 'html',
             'html_template': \
-                '<div style="text-align: right; font-size: 16px;">{}</div>'.format(task_desc)
+                '<div class="parent-padding-top-0px parent-padding-bottom-0px" '
+                    'style="text-align: right; font-size: 16px;">'
+                    '{task_desc}'
+                '</div>'.format(task_desc=task_desc)
         }
     ]
     return blocks
