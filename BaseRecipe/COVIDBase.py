@@ -9,10 +9,21 @@ from prodigy.components.loaders import JSONL
 from prodigy.components.preprocess import add_tokens, add_label_options
 from prodigy.util import split_string
 
+# # for debugging locally
+# # any code is ok here as long as it provides a mongo db obj
+# import os
+# import sys
+# parent_folder = os.path.abspath(os.path.join(
+#     os.path.dirname(__file__),
+#     '..'
+# ))
+# print('parent_folder', parent_folder)
+# if parent_folder not in sys.path:
+#     sys.path.append(parent_folder)
 # from common_utils import get_mongo_db
-# db = get_mongo_db('tmp_db_config.json')
+# db = get_mongo_db('../config.json')
 
-db = get_db().get_mongo_db()
+# db = get_db().get_mongo_db()
 print('db.collection_names()', db.collection_names())
 
 # global variables
