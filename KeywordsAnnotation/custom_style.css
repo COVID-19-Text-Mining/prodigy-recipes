@@ -1,3 +1,9 @@
+/*for all*/
+.prodigy-content {
+	text-align: justify !important;
+}
+
+/*!*for keywords annotation*!*/
 .prodigy-title-wrapper {
 	display: none;
 }

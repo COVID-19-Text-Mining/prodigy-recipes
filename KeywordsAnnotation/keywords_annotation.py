@@ -371,7 +371,7 @@ def COVIDKeywordsAnnotation(
             'blocks': all_task_blocks,
             "lang": nlp.lang,
             'javascript': script_text,     # custom js
-            'global_css': css_text,     # custom css
+            'global_css': None,     # custom css
             'instant_submit': True,
         },
     }

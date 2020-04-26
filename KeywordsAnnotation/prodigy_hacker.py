@@ -32,6 +32,13 @@ def start_hacking(prodigy_data_provider_by_doi):
     with open(os.path.join(os.path.dirname(__file__), 'index.html'), encoding='utf8') as f:
         my_html = f.read()
 
+    with open(os.path.join(os.path.dirname(__file__), 'custom_style.css'), encoding='utf8') as f:
+        my_css = f.read()
+    my_html = my_html.replace(
+        '<!--placeholder for custom_style.css-->',
+        '\n<style>\n{}\n</style>\n'.format(my_css)
+    )
+
     def static_bundle(_):
         return Response(my_js, media_type="application/javascript")
 
