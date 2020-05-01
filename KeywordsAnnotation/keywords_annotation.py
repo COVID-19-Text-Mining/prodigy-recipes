@@ -337,7 +337,7 @@ def COVIDKeywordsAnnotation(
         template_text = txt.read()
     with open('keywords_annotation.js') as txt:
         script_text = txt.read()
-    with open('keywords_annotation.css') as txt:
+    with open('custom_style.css') as txt:
         css_text = txt.read()
 
     # activate tasks
