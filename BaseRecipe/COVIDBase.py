@@ -23,7 +23,7 @@ from prodigy.util import split_string
 # from common_utils import get_mongo_db
 # db = get_mongo_db('../config.json')
 
-# db = get_db().get_mongo_db()
+db = get_db().get_mongo_db()
 print('db.collection_names()', db.collection_names())
 
 # global variables
